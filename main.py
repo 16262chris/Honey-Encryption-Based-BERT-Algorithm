@@ -6,17 +6,11 @@ uploaded = pd.read_csv ("my_filename.csv")
 
 filename = list(uploaded.keys())[0]
 
-# ===============================
-# 2. PREPARE DATASET 
-# ===============================
 from datasets import Dataset
 with open(filename, 'r', encoding='utf-8') as f:
     lines = [line.strip() for line in f if line.strip()]
 dataset = Dataset.from_dict({"text": lines})
 
-# ===============================
-# 3. MODEL TRAINING UTILS
-# ===============================
 from transformers import BertTokenizer, BertForMaskedLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling
 import os
 
@@ -61,9 +55,6 @@ trainer.save_model(MODEL_PATH)
 tokenizer.save_pretrained(MODEL_PATH)
 print("Training complete. Model saved to", MODEL_PATH)
 
-# ===============================
-# 4. HONEY GENERATOR
-# ===============================
 from transformers import pipeline
 import random
 
@@ -86,9 +77,6 @@ class HoneyGenerator:
                 variants.append(current)
             return variants
 
-# ===============================
-# 5. DTE (Distribution Transforming Encoder)
-# ===============================
 import hmac, hashlib
 
 class DTE:
@@ -108,9 +96,6 @@ class DTE:
         idx = self._index_from_key(key)
         return self.honey_messages[idx]
 
-# ===============================
-# 6. CRYPTO UTILS
-# ===============================
 import base64
 import os
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -144,9 +129,6 @@ def decrypt_index(token: str, passphrase: str = "default") -> int:
     data = aesgcm.decrypt(nonce, ct, None)
     return int(data.decode('utf-8'))
 
-# ===============================
-# 7. MAIN LOGIC
-# ===============================
 print("\n Generating honey messages...")
 generator = HoneyGenerator(MODEL_PATH)
 template = "Debit of [MASK] made at [MASK] on [MASK]."
