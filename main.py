@@ -91,17 +91,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── MongoDB init (reads from Streamlit Secrets) ─────────────────────────────────
+# ── MongoDB init ────────────────────────────────────────────────────────────────
 @st.cache_resource
 def init_mongo():
     uri = st.secrets["mongo"]["uri"]
     client = MongoClient(uri)
-    db = client["honey_encryption"]
-    return db
+    return client["honey_encryption"]
 
 db = init_mongo()
 
-# ── BERT init (cached) ─────────────────────────────────────────────────────────
+# ── BERT init ──────────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner="Loading BERT model…")
 def load_models():
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -111,8 +110,18 @@ def load_models():
 
 tokenizer, bert_model = load_models()
 
-# ── Password config ─────────────────────────────────────────────────────────────
-SECRET_PASSWORD = "sunshine"
+# ── Fixed sentence & password ───────────────────────────────────────────────────
+SECRET_SENTENCE = "God does not play dice with the universe."
+SECRET_PASSWORD = "Iam123@"
+
+# ── Decoy password pool (popular real-world passwords) ─────────────────────────
+DECOY_PASSWORDS = [
+    "password1", "123456789", "qwerty123", "iloveyou1",
+    "admin@123", "letmein1!", "welcome12", "monkey123",
+    "dragon123", "master123", "sunshine1", "shadow123",
+    "michael1!", "jessica12", "football1", "baseball1",
+    "abc123456", "trustno1!", "superman1", "batman123",
+]
 
 # ── Dataset ─────────────────────────────────────────────────────────────────────
 NOUN_PHRASES = [
@@ -136,7 +145,7 @@ VERB_PHRASES = [
     "organized the wedding", "embraced a new opportunity",
 ]
 
-# ── Core logic ───────────────────────────────────────────────────────────────────
+# ── Core logic ─────────────────────────────────────────────────────────────────
 def is_semantically_correct(sentence: str) -> bool:
     tokens = tokenizer.tokenize(sentence)
     if not tokens:
@@ -161,7 +170,7 @@ def is_semantically_correct(sentence: str) -> bool:
     return (correct / len(tokens)) > 0.5
 
 
-def generate_decoy(max_attempts: int = 10) -> str:
+def generate_decoy_sentence(max_attempts: int = 10) -> str:
     best_sentence = None
     for _ in range(max_attempts):
         noun = random.choice(NOUN_PHRASES)
@@ -177,16 +186,28 @@ def generate_decoy(max_attempts: int = 10) -> str:
     return best_sentence or "The professor organized the wedding."
 
 
-def save_survey(data: dict):
-    collection = db["survey_responses"]
-    collection.insert_one({
-        **data,
+def build_password_options() -> list:
+    """Pick 4 decoy passwords and shuffle them with the real one."""
+    decoys = random.sample(DECOY_PASSWORDS, 4)
+    options = decoys + [SECRET_PASSWORD]
+    random.shuffle(options)
+    return options
+
+
+def save_response(survey_data: dict, trial_data: dict):
+    db["survey_responses"].insert_one({
+        **survey_data,
+        **trial_data,
         "timestamp": datetime.utcnow().isoformat()
     })
 
-# ── Session state defaults ───────────────────────────────────────────────────────
+# ── Session state defaults ─────────────────────────────────────────────────────
 if "page" not in st.session_state:
     st.session_state["page"] = "survey"
+if "survey_data" not in st.session_state:
+    st.session_state["survey_data"] = {}
+if "password_options" not in st.session_state:
+    st.session_state["password_options"] = build_password_options()
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 1 — SURVEY
@@ -200,9 +221,9 @@ if st.session_state["page"] == "survey":
         Through this questionnaire, we aim to evaluate the distinguishability of a novel honey
         encryption scheme. This scheme utilises the BERT model to generate plausible-looking
         decoy data when an incorrect decryption key is used.<br><br>
-        <strong>Your Task:</strong> You will be presented with multiple passwords. Your goal is
-        to select and input the password you believe to be the correct one, then indicate your
-        confidence level in that choice.<br><br>
+        <strong>Your Task:</strong> You will be presented with a list of passwords. Your goal is
+        to select the password you believe to be the correct one, then indicate your confidence
+        level in that choice.<br><br>
         <strong>Confidentiality:</strong> All responses are anonymous and no personal data is stored.
         Results will be used strictly for academic evaluation of the model's performance.
     </div>
@@ -248,56 +269,94 @@ if st.session_state["page"] == "survey":
             if missing:
                 st.error(f"Please fill in the following required fields: {', '.join(missing)}")
             else:
-                try:
-                    save_survey({
-                        "age_range": age,
-                        "gender": gender.strip(),
-                        "education": education,
-                        "english_level": english_level,
-                        "english_exam": english_exam,
-                    })
-                    st.session_state["page"] = "app"
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Could not save response to MongoDB: {e}")
+                st.session_state["survey_data"] = {
+                    "age_range": age,
+                    "gender": gender.strip(),
+                    "education": education,
+                    "english_level": english_level,
+                    "english_exam": english_exam,
+                }
+                st.session_state["page"] = "app"
+                st.rerun()
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PAGE 2 — ENCRYPTION TOOL
+# PAGE 2 — PASSWORD TRIAL
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state["page"] == "app":
 
-    st.title("🔐 Decoy Sentence Generator")
-    st.caption("Enter your sentence and a password. The correct password reveals your original sentence; anything else returns a plausible decoy.")
+    st.title("🔐 Password Trial")
+    st.caption("Select the password you think is correct, then rate your confidence.")
 
     st.divider()
 
-    user_sentence = st.text_area(
-        "Your sentence",
-        placeholder="Type the sentence you want to protect…",
-        height=100,
+    st.markdown("#### Encrypted message")
+    st.markdown(
+        '<div class="result-box">🔒 &nbsp;<em>[This message is encrypted. The correct password will reveal it.]</em></div>',
+        unsafe_allow_html=True,
     )
 
-    if st.button("Generate Decoy & Verify", disabled=not user_sentence.strip()):
-        with st.spinner("Running BERT semantic validation…"):
-            decoy = generate_decoy()
-        st.session_state["decoy"] = decoy
-        st.session_state["user_sentence"] = user_sentence
-        st.success("Decoy generated. Enter your password below to reveal the result.")
+    st.divider()
 
-    if "decoy" in st.session_state:
-        st.divider()
-        password = st.text_input("Password", type="password", placeholder="Enter password…")
+    st.markdown("#### Select a password")
+    password_options = st.session_state["password_options"]
+    selected_password = st.radio(
+        "Which password do you think is correct?",
+        options=password_options,
+        index=None,
+        label_visibility="collapsed",
+    )
 
-        if st.button("Submit"):
+    st.divider()
+
+    st.markdown("#### Confidence level")
+    confidence = st.radio(
+        "How confident are you in your choice?",
+        options=["Not confident", "Somewhat confident", "Very confident"],
+        index=None,
+        label_visibility="collapsed",
+    )
+
+    st.divider()
+
+    if st.button("Submit"):
+        if not selected_password:
+            st.error("Please select a password.")
+        elif not confidence:
+            st.error("Please rate your confidence level.")
+        else:
+            # Determine result
+            is_correct = selected_password == SECRET_PASSWORD
+
+            if is_correct:
+                output_sentence = SECRET_SENTENCE
+            else:
+                with st.spinner("Generating decoy sentence…"):
+                    output_sentence = generate_decoy_sentence()
+
+            # Save everything to MongoDB
+            try:
+                save_response(
+                    survey_data=st.session_state["survey_data"],
+                    trial_data={
+                        "selected_password": selected_password,
+                        "correct_password_chosen": is_correct,
+                        "confidence": confidence,
+                        "sentence_shown": output_sentence,
+                    }
+                )
+            except Exception as e:
+                st.warning(f"Could not save to MongoDB: {e}")
+
+            # Show result
             st.divider()
-            st.markdown('<p class="label-text">Output</p>', unsafe_allow_html=True)
-            if password == SECRET_PASSWORD:
+            st.markdown('<p class="label-text">Decrypted Output</p>', unsafe_allow_html=True)
+            if is_correct:
                 st.markdown(
-                    f'<div class="result-box">✅ &nbsp;{st.session_state["user_sentence"]}</div>',
+                    f'<div class="result-box">✅ &nbsp;{output_sentence}</div>',
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
-                    f'<div class="result-box">🔀 &nbsp;{st.session_state["decoy"]}</div>',
+                    f'<div class="result-box">🔀 &nbsp;{output_sentence}</div>',
                     unsafe_allow_html=True,
                 )
