@@ -64,6 +64,7 @@ st.markdown("""
         font-size: 1rem;
         color: #e8e8e8;
         margin-top: 1rem;
+        margin-bottom: 1rem;
     }
     .label-text {
         font-family: 'IBM Plex Mono', monospace;
@@ -83,10 +84,27 @@ st.markdown("""
         line-height: 1.6;
         color: #ccc;
     }
-    .stAlert {
-        background-color: #1a1a1a;
-        border: 1px solid #333;
+    .step-indicator {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.75rem;
+        color: #555;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
     }
+    .step-active { color: #4af; }
+    .thank-you-box {
+        background-color: #111;
+        border: 1px solid #1a3a1a;
+        border-left: 3px solid #4a4;
+        border-radius: 6px;
+        padding: 2rem;
+        text-align: center;
+        color: #ccc;
+        font-size: 1rem;
+        line-height: 1.8;
+    }
+    .stAlert { background-color: #1a1a1a; border: 1px solid #333; }
     hr { border-color: #222; }
 </style>
 """, unsafe_allow_html=True)
@@ -114,7 +132,7 @@ tokenizer, bert_model = load_models()
 SECRET_SENTENCE = "God does not play dice with the universe."
 SECRET_PASSWORD = "Iam123@"
 
-# ── Decoy password pool (popular real-world passwords) ─────────────────────────
+# ── Decoy password pool ─────────────────────────────────────────────────────────
 DECOY_PASSWORDS = [
     "password1", "123456789", "qwerty123", "iloveyou1",
     "admin@123", "letmein1!", "welcome12", "monkey123",
@@ -187,33 +205,51 @@ def generate_decoy_sentence(max_attempts: int = 10) -> str:
 
 
 def build_password_options() -> list:
-    """Pick 4 decoy passwords and shuffle them with the real one."""
     decoys = random.sample(DECOY_PASSWORDS, 4)
     options = decoys + [SECRET_PASSWORD]
     random.shuffle(options)
     return options
 
 
-def save_response(survey_data: dict, trial_data: dict):
+def save_response(data: dict):
     db["survey_responses"].insert_one({
-        **survey_data,
-        **trial_data,
+        **data,
         "timestamp": datetime.utcnow().isoformat()
     })
+
+
+def render_steps(current: int):
+    """Render a simple step indicator. Steps: 1=Survey, 2=Trial, 3=Confidence, 4=Done"""
+    labels = ["Survey", "Password Trial", "Confidence", "Complete"]
+    cols = st.columns(len(labels))
+    for i, (col, label) in enumerate(zip(cols, labels)):
+        step_num = i + 1
+        if step_num == current:
+            col.markdown(f'<div class="step-indicator step-active">● Step {step_num}<br>{label}</div>', unsafe_allow_html=True)
+        elif step_num < current:
+            col.markdown(f'<div class="step-indicator" style="color:#4a4;">✓ Step {step_num}<br>{label}</div>', unsafe_allow_html=True)
+        else:
+            col.markdown(f'<div class="step-indicator">○ Step {step_num}<br>{label}</div>', unsafe_allow_html=True)
+
 
 # ── Session state defaults ─────────────────────────────────────────────────────
 if "page" not in st.session_state:
     st.session_state["page"] = "survey"
 if "survey_data" not in st.session_state:
     st.session_state["survey_data"] = {}
+if "trial_data" not in st.session_state:
+    st.session_state["trial_data"] = {}
 if "password_options" not in st.session_state:
     st.session_state["password_options"] = build_password_options()
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 1 — SURVEY
 # ══════════════════════════════════════════════════════════════════════════════
 if st.session_state["page"] == "survey":
 
+    render_steps(1)
+    st.divider()
     st.title("📋 Research Survey")
     st.markdown("""
     <div class="info-box">
@@ -222,14 +258,12 @@ if st.session_state["page"] == "survey":
         encryption scheme. This scheme utilises the BERT model to generate plausible-looking
         decoy data when an incorrect decryption key is used.<br><br>
         <strong>Your Task:</strong> You will be presented with a list of passwords. Your goal is
-        to select the password you believe to be the correct one, then indicate your confidence
-        level in that choice.<br><br>
+        to select the password you believe to be the correct one. You will then see the decrypted
+        output and be asked to rate your confidence.<br><br>
         <strong>Confidentiality:</strong> All responses are anonymous and no personal data is stored.
         Results will be used strictly for academic evaluation of the model's performance.
     </div>
     """, unsafe_allow_html=True)
-
-    st.divider()
 
     with st.form("survey_form"):
         st.markdown("#### Demographic Information")
@@ -238,20 +272,16 @@ if st.session_state["page"] == "survey":
         age = st.selectbox("Age range *", [
             "", "16 - 25", "26 - 35", "36 - 45", "46 - 55", "56 - 65", "Over 65"
         ])
-
         gender = st.selectbox("Gender *", ["", "Male", "Female", "Prefer not to say"])
-
         education = st.selectbox("Highest education attained *", [
             "", "No formal education", "Basic education",
             "Senior secondary education", "Tertiary education", "Postgraduate education"
         ])
 
         st.markdown("#### English Language Proficiency")
-
         english_level = st.selectbox("How would you describe your level of English language mastery? *", [
             "", "Beginner", "Intermediate", "Advanced"
         ])
-
         english_exam = st.selectbox("Highest level of English Language testing exam taken and passed *", [
             "", "JAMB/WAEC", "GST", "IELTS/TOEFL/Duolingo", "Other", "None"
         ])
@@ -276,16 +306,19 @@ if st.session_state["page"] == "survey":
                     "english_level": english_level,
                     "english_exam": english_exam,
                 }
-                st.session_state["page"] = "app"
+                st.session_state["page"] = "trial"
                 st.rerun()
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 2 — PASSWORD TRIAL
 # ══════════════════════════════════════════════════════════════════════════════
-elif st.session_state["page"] == "app":
+elif st.session_state["page"] == "trial":
 
+    render_steps(2)
+    st.divider()
     st.title("🔐 Password Trial")
-    st.caption("Select the password you think is correct, then rate your confidence.")
+    st.caption("Select the password you believe is correct and submit to see the decrypted output.")
 
     st.divider()
 
@@ -308,23 +341,10 @@ elif st.session_state["page"] == "app":
 
     st.divider()
 
-    st.markdown("#### Confidence level")
-    confidence = st.radio(
-        "How confident are you in your choice?",
-        options=["Not confident", "Somewhat confident", "Very confident"],
-        index=None,
-        label_visibility="collapsed",
-    )
-
-    st.divider()
-
-    if st.button("Submit"):
+    if st.button("Decrypt →"):
         if not selected_password:
-            st.error("Please select a password.")
-        elif not confidence:
-            st.error("Please rate your confidence level.")
+            st.error("Please select a password before continuing.")
         else:
-            # Determine result
             is_correct = selected_password == SECRET_PASSWORD
 
             if is_correct:
@@ -333,30 +353,85 @@ elif st.session_state["page"] == "app":
                 with st.spinner("Generating decoy sentence…"):
                     output_sentence = generate_decoy_sentence()
 
-            # Save everything to MongoDB
-            try:
-                save_response(
-                    survey_data=st.session_state["survey_data"],
-                    trial_data={
-                        "selected_password": selected_password,
-                        "correct_password_chosen": is_correct,
-                        "confidence": confidence,
-                        "sentence_shown": output_sentence,
-                    }
-                )
-            except Exception as e:
-                st.warning(f"Could not save to MongoDB: {e}")
+            st.session_state["trial_data"] = {
+                "selected_password": selected_password,
+                "correct_password_chosen": is_correct,
+                "sentence_shown": output_sentence,
+            }
+            st.session_state["page"] = "confidence"
+            st.rerun()
 
-            # Show result
-            st.divider()
-            st.markdown('<p class="label-text">Decrypted Output</p>', unsafe_allow_html=True)
-            if is_correct:
-                st.markdown(
-                    f'<div class="result-box">✅ &nbsp;{output_sentence}</div>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    f'<div class="result-box">🔀 &nbsp;{output_sentence}</div>',
-                    unsafe_allow_html=True,
-                )
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 3 — OUTPUT + CONFIDENCE RATING
+# ══════════════════════════════════════════════════════════════════════════════
+elif st.session_state["page"] == "confidence":
+
+    render_steps(3)
+    st.divider()
+    st.title("📊 Decrypted Output")
+    st.caption("This is the message produced by the password you selected.")
+
+    st.divider()
+
+    trial = st.session_state["trial_data"]
+    is_correct = trial["correct_password_chosen"]
+    output_sentence = trial["sentence_shown"]
+
+    st.markdown('<p class="label-text">Decrypted Output</p>', unsafe_allow_html=True)
+    icon = "✅" if is_correct else "🔀"
+    st.markdown(
+        f'<div class="result-box">{icon} &nbsp;{output_sentence}</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(f"**Password used:** `{trial['selected_password']}`")
+
+    st.divider()
+
+    st.markdown("#### How confident were you in your password choice?")
+    st.caption("Rate your confidence based on your choice, not on the output you see above.")
+
+    confidence = st.radio(
+        "Confidence level",
+        options=["Not confident", "Somewhat confident", "Very confident"],
+        index=None,
+        label_visibility="collapsed",
+    )
+
+    st.divider()
+
+    if st.button("Submit Response →"):
+        if not confidence:
+            st.error("Please rate your confidence level before submitting.")
+        else:
+            try:
+                save_response({
+                    **st.session_state["survey_data"],
+                    **st.session_state["trial_data"],
+                    "confidence": confidence,
+                })
+                st.session_state["page"] = "done"
+                st.rerun()
+            except Exception as e:
+                st.error(f"Could not save to MongoDB: {e}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 4 — THANK YOU
+# ══════════════════════════════════════════════════════════════════════════════
+elif st.session_state["page"] == "done":
+
+    render_steps(4)
+    st.divider()
+    st.title("🎉 Thank You!")
+    st.markdown("""
+    <div class="thank-you-box">
+        Your response has been recorded successfully.<br><br>
+        Thank you for participating in this research study on<br>
+        <strong>BERT-based Honey Encryption distinguishability</strong>.<br><br>
+        Your contribution will help evaluate the effectiveness of the model
+        in generating plausible decoy data. The results will be used
+        strictly for academic purposes.
+    </div>
+    """, unsafe_allow_html=True)
