@@ -2,8 +2,7 @@ import streamlit as st
 from transformers import BertTokenizer, BertForMaskedLM
 import torch
 import random
-import firebase_admin
-from firebase_admin import credentials, firestore
+from pymongo import MongoClient
 from datetime import datetime
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -84,20 +83,23 @@ st.markdown("""
         line-height: 1.6;
         color: #ccc;
     }
+    .stAlert {
+        background-color: #1a1a1a;
+        border: 1px solid #333;
+    }
     hr { border-color: #222; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Firebase init (cached) ──────────────────────────────────────────────────────
+# ── MongoDB init (reads from Streamlit Secrets) ─────────────────────────────────
 @st.cache_resource
-def init_firebase():
-    if not firebase_admin._apps:
-        key_dict = dict(st.secrets["firebase"])
-        cred = credentials.Certificate(key_dict)
-        firebase_admin.initialize_app(cred)
-    return firestore.client()
-    
-db = init_firebase()
+def init_mongo():
+    uri = st.secrets["mongo"]["uri"]
+    client = MongoClient(uri)
+    db = client["honey_encryption"]
+    return db
+
+db = init_mongo()
 
 # ── BERT init (cached) ─────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner="Loading BERT model…")
@@ -176,14 +178,15 @@ def generate_decoy(max_attempts: int = 10) -> str:
 
 
 def save_survey(data: dict):
-    db.collection("survey_responses").add({
+    collection = db["survey_responses"]
+    collection.insert_one({
         **data,
         "timestamp": datetime.utcnow().isoformat()
     })
 
 # ── Session state defaults ───────────────────────────────────────────────────────
 if "page" not in st.session_state:
-    st.session_state["page"] = "survey"  # "survey" | "app"
+    st.session_state["page"] = "survey"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 1 — SURVEY
@@ -215,7 +218,7 @@ if st.session_state["page"] == "survey":
             "", "16 - 25", "26 - 35", "36 - 45", "46 - 55", "56 - 65", "Over 65"
         ])
 
-        gender = st.selectbox("Gender *", ["","Male", "Female", "Prefer not to say"])
+        gender = st.text_input("Gender *", placeholder="e.g. Male, Female, Non-binary, Prefer not to say…")
 
         education = st.selectbox("Highest education attained *", [
             "", "No formal education", "Basic education",
@@ -256,7 +259,7 @@ if st.session_state["page"] == "survey":
                     st.session_state["page"] = "app"
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Could not save response to Firebase: {e}")
+                    st.error(f"Could not save response to MongoDB: {e}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 2 — ENCRYPTION TOOL
