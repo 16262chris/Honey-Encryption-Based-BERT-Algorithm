@@ -215,7 +215,7 @@ if st.session_state["page"] == "survey":
             "", "16 - 25", "26 - 35", "36 - 45", "46 - 55", "56 - 65", "Over 65"
         ])
 
-        gender = st.text_input("Gender *", placeholder="e.g. Male, Female, Non-binary, Prefer not to say…")
+        gender = st.selectbox("Gender *", ["","Male", "Female", "Prefer not to say"])
 
         education = st.selectbox("Highest education attained *", [
             "", "No formal education", "Basic education",
