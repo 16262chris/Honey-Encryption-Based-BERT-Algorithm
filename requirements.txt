@@ -1,4 +1,4 @@
 transformers
 torch
 streamlit
-firebase-admin
+pymongo[srv]
