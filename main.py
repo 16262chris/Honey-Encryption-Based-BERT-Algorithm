@@ -2,10 +2,13 @@ import streamlit as st
 from transformers import BertTokenizer, BertForMaskedLM
 import torch
 import random
+import firebase_admin
+from firebase_admin import credentials, firestore
+from datetime import datetime
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Decoy Sentence Generator",
+    page_title="Honey Encryption Study",
     page_icon="🔐",
     layout="centered",
 )
@@ -71,15 +74,39 @@ st.markdown("""
         text-transform: uppercase;
         margin-bottom: 0.25rem;
     }
-    .stAlert {
-        background-color: #1a1a1a;
-        border: 1px solid #333;
+    .info-box {
+        background-color: #111;
+        border: 1px solid #2a2a2a;
+        border-radius: 6px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: #ccc;
     }
-    hr {
-        border-color: #222;
-    }
+    hr { border-color: #222; }
 </style>
 """, unsafe_allow_html=True)
+
+# ── Firebase init (cached) ──────────────────────────────────────────────────────
+@st.cache_resource
+def init_firebase():
+    if not firebase_admin._apps:
+        cred = credentials.Certificate("firebase_key.json")
+        firebase_admin.initialize_app(cred)
+    return firestore.client()
+
+db = init_firebase()
+
+# ── BERT init (cached) ─────────────────────────────────────────────────────────
+@st.cache_resource(show_spinner="Loading BERT model…")
+def load_models():
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    model = BertForMaskedLM.from_pretrained('bert-base-uncased')
+    model.eval()
+    return tokenizer, model
+
+tokenizer, bert_model = load_models()
 
 # ── Password config ─────────────────────────────────────────────────────────────
 SECRET_PASSWORD = "sunshine"
@@ -105,16 +132,6 @@ VERB_PHRASES = [
     "answered the phone quickly", "served us rice and beans",
     "organized the wedding", "embraced a new opportunity",
 ]
-
-# ── Model loading (cached) ───────────────────────────────────────────────────────
-@st.cache_resource(show_spinner="Loading BERT model…")
-def load_models():
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-    model = BertForMaskedLM.from_pretrained('bert-base-uncased')
-    model.eval()
-    return tokenizer, model
-
-tokenizer, bert_model = load_models()
 
 # ── Core logic ───────────────────────────────────────────────────────────────────
 def is_semantically_correct(sentence: str) -> bool:
@@ -156,40 +173,127 @@ def generate_decoy(max_attempts: int = 10) -> str:
             best_sentence = candidate
     return best_sentence or "The professor organized the wedding."
 
-# ── UI ───────────────────────────────────────────────────────────────────────────
-st.title("🔐 Decoy Sentence Generator")
-st.caption("Enter your sentence and a password. The correct password reveals your original sentence; anything else returns a plausible decoy.")
 
-st.divider()
+def save_survey(data: dict):
+    db.collection("survey_responses").add({
+        **data,
+        "timestamp": datetime.utcnow().isoformat()
+    })
 
-user_sentence = st.text_area(
-    "Your sentence",
-    placeholder="Type the sentence you want to protect…",
-    height=100,
-)
+# ── Session state defaults ───────────────────────────────────────────────────────
+if "page" not in st.session_state:
+    st.session_state["page"] = "survey"  # "survey" | "app"
 
-if st.button("Generate Decoy & Verify", disabled=not user_sentence.strip()):
-    with st.spinner("Running BERT semantic validation…"):
-        decoy = generate_decoy()
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 1 — SURVEY
+# ══════════════════════════════════════════════════════════════════════════════
+if st.session_state["page"] == "survey":
 
-    st.session_state["decoy"] = decoy
-    st.session_state["user_sentence"] = user_sentence
-    st.success("Decoy generated. Enter your password below to reveal the result.")
+    st.title("📋 Research Survey")
+    st.markdown("""
+    <div class="info-box">
+        <strong>Distinguishability Testing of BERT-based Honey Encryption</strong><br><br>
+        Through this questionnaire, we aim to evaluate the distinguishability of a novel honey
+        encryption scheme. This scheme utilises the BERT model to generate plausible-looking
+        decoy data when an incorrect decryption key is used.<br><br>
+        <strong>Your Task:</strong> You will be presented with multiple passwords. Your goal is
+        to select and input the password you believe to be the correct one, then indicate your
+        confidence level in that choice.<br><br>
+        <strong>Confidentiality:</strong> All responses are anonymous and no personal data is stored.
+        Results will be used strictly for academic evaluation of the model's performance.
+    </div>
+    """, unsafe_allow_html=True)
 
-if "decoy" in st.session_state:
     st.divider()
-    password = st.text_input("Password", type="password", placeholder="Enter password…")
 
-    if st.button("Submit"):
+    with st.form("survey_form"):
+        st.markdown("#### Demographic Information")
+        st.caption("All fields marked * are required.")
+
+        age = st.selectbox("Age range *", [
+            "", "16 - 25", "26 - 35", "36 - 45", "46 - 55", "56 - 65", "Over 65"
+        ])
+
+        gender = st.text_input("Gender *", placeholder="e.g. Male, Female, Non-binary, Prefer not to say…")
+
+        education = st.selectbox("Highest education attained *", [
+            "", "No formal education", "Basic education",
+            "Senior secondary education", "Tertiary education", "Postgraduate education"
+        ])
+
+        st.markdown("#### English Language Proficiency")
+
+        english_level = st.selectbox("How would you describe your level of English language mastery? *", [
+            "", "Beginner", "Intermediate", "Advanced"
+        ])
+
+        english_exam = st.selectbox("Highest level of English Language testing exam taken and passed *", [
+            "", "JAMB/WAEC", "GST", "IELTS/TOEFL/Duolingo", "Other", "None"
+        ])
+
+        submitted = st.form_submit_button("Submit & Continue →")
+
+        if submitted:
+            missing = []
+            if not age:             missing.append("Age range")
+            if not gender.strip():  missing.append("Gender")
+            if not education:       missing.append("Highest education attained")
+            if not english_level:   missing.append("English language mastery")
+            if not english_exam:    missing.append("English exam")
+
+            if missing:
+                st.error(f"Please fill in the following required fields: {', '.join(missing)}")
+            else:
+                try:
+                    save_survey({
+                        "age_range": age,
+                        "gender": gender.strip(),
+                        "education": education,
+                        "english_level": english_level,
+                        "english_exam": english_exam,
+                    })
+                    st.session_state["page"] = "app"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Could not save response to Firebase: {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 2 — ENCRYPTION TOOL
+# ══════════════════════════════════════════════════════════════════════════════
+elif st.session_state["page"] == "app":
+
+    st.title("🔐 Decoy Sentence Generator")
+    st.caption("Enter your sentence and a password. The correct password reveals your original sentence; anything else returns a plausible decoy.")
+
+    st.divider()
+
+    user_sentence = st.text_area(
+        "Your sentence",
+        placeholder="Type the sentence you want to protect…",
+        height=100,
+    )
+
+    if st.button("Generate Decoy & Verify", disabled=not user_sentence.strip()):
+        with st.spinner("Running BERT semantic validation…"):
+            decoy = generate_decoy()
+        st.session_state["decoy"] = decoy
+        st.session_state["user_sentence"] = user_sentence
+        st.success("Decoy generated. Enter your password below to reveal the result.")
+
+    if "decoy" in st.session_state:
         st.divider()
-        st.markdown('<p class="label-text">Output</p>', unsafe_allow_html=True)
-        if password == SECRET_PASSWORD:
-            st.markdown(
-                f'<div class="result-box">✅ &nbsp;{st.session_state["user_sentence"]}</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f'<div class="result-box">🔀 &nbsp;{st.session_state["decoy"]}</div>',
-                unsafe_allow_html=True,
-            )
+        password = st.text_input("Password", type="password", placeholder="Enter password…")
+
+        if st.button("Submit"):
+            st.divider()
+            st.markdown('<p class="label-text">Output</p>', unsafe_allow_html=True)
+            if password == SECRET_PASSWORD:
+                st.markdown(
+                    f'<div class="result-box">✅ &nbsp;{st.session_state["user_sentence"]}</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f'<div class="result-box">🔀 &nbsp;{st.session_state["decoy"]}</div>',
+                    unsafe_allow_html=True,
+                )
