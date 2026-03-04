@@ -1,154 +1,195 @@
-!pip install transformers datasets torch cryptography
-
-import pandas as pd
-
-uploaded = pd.read_csv ("my_filename.csv")
-
-filename = list(uploaded.keys())[0]
-
-from datasets import Dataset
-with open(filename, 'r', encoding='utf-8') as f:
-    lines = [line.strip() for line in f if line.strip()]
-dataset = Dataset.from_dict({"text": lines})
-
-from transformers import BertTokenizer, BertForMaskedLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling
-import os
-
-MODEL_PATH = "./bert-finance"
-
-tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-model = BertForMaskedLM.from_pretrained("bert-base-uncased")
-
-def tokenize_fn(batch):
-    return tokenizer(batch["text"], truncation=True, padding="max_length", max_length=128)
-
-tokenized = dataset.map(tokenize_fn, batched=True, remove_columns=["text"])
-
-data_collator = DataCollatorForLanguageModeling(
-    tokenizer=tokenizer,
-    mlm=True,
-    mlm_probability=0.15
-)
-
-args = TrainingArguments(
-    output_dir=MODEL_PATH,
-    overwrite_output_dir=True,
-    num_train_epochs=1,
-    per_device_train_batch_size=8,
-    save_steps=500,
-    save_total_limit=1,
-    prediction_loss_only=True,
-    logging_dir="./logs",
-    logging_steps=10
-)
-
-trainer = Trainer(
-    model=model,
-    args=args,
-    train_dataset=tokenized,
-    data_collator=data_collator
-)
-
-print("Training started...")
-trainer.train()
-trainer.save_model(MODEL_PATH)
-tokenizer.save_pretrained(MODEL_PATH)
-print("Training complete. Model saved to", MODEL_PATH)
-
-from transformers import pipeline
+import streamlit as st
+from transformers import BertTokenizer, BertForMaskedLM
+import torch
 import random
 
-class HoneyGenerator:
-    def __init__(self, model_path: str):
-        self.generator = pipeline("fill-mask", model=model_path, tokenizer=model_path)
+# ── Page config ────────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Decoy Sentence Generator",
+    page_icon="🔐",
+    layout="centered",
+)
 
-    def generate(self, template: str, top_k: int = 5, n_variants: int = 5):
-        if template.count("[MASK]") == 1:
-            outputs = self.generator(template, top_k=top_k)
-            return [o['sequence'] for o in outputs][:n_variants]
+# ── Styling ────────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'IBM Plex Sans', sans-serif;
+    }
+    .stApp {
+        background-color: #0f0f0f;
+        color: #e8e8e8;
+    }
+    h1, h2, h3 {
+        font-family: 'IBM Plex Mono', monospace !important;
+        color: #f0f0f0;
+    }
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea {
+        background-color: #1a1a1a;
+        color: #e8e8e8;
+        border: 1px solid #333;
+        border-radius: 4px;
+        font-family: 'IBM Plex Mono', monospace;
+    }
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: #4af;
+        box-shadow: 0 0 0 1px #4af;
+    }
+    .stButton > button {
+        background-color: #1a1a1a;
+        color: #4af;
+        border: 1px solid #4af;
+        border-radius: 4px;
+        font-family: 'IBM Plex Mono', monospace;
+        font-weight: 600;
+        padding: 0.5rem 1.5rem;
+        transition: all 0.2s ease;
+    }
+    .stButton > button:hover {
+        background-color: #4af;
+        color: #0f0f0f;
+    }
+    .result-box {
+        background-color: #1a1a1a;
+        border-left: 3px solid #4af;
+        padding: 1rem 1.25rem;
+        border-radius: 0 4px 4px 0;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 1rem;
+        color: #e8e8e8;
+        margin-top: 1rem;
+    }
+    .label-text {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.75rem;
+        color: #888;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
+    }
+    .stAlert {
+        background-color: #1a1a1a;
+        border: 1px solid #333;
+    }
+    hr {
+        border-color: #222;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Password config ─────────────────────────────────────────────────────────────
+SECRET_PASSWORD = "sunshine"
+
+# ── Dataset ─────────────────────────────────────────────────────────────────────
+NOUN_PHRASES = [
+    "the old man", "she", "my father", "he", "the little boy",
+    "the handsome chef", "the movie director", "his best friend",
+    "her husband", "a young lady", "James", "the professor",
+    "our governor", "Victor", "her mother", "the doctor",
+    "they", "many students", "a friendly neighbor", "a curious child",
+    "the bickering siblings"
+]
+
+VERB_PHRASES = [
+    "has eaten", "died last night", "danced at the party", "loves her",
+    "gave us a cup of coffee", "walked with precision", "hummed a melancholic tune",
+    "devoured the last slice of cake in seconds", "quietly pondered the meaning of life",
+    "furiously typed away at the keyboard", "diligently researched the topic for weeks",
+    "burst into laughter at the unexpected joke", "gently cradled the newborn baby in their arms",
+    "offered words of comfort to a grieving friend", "sang a beautiful song",
+    "listened attentively to the lecture", "watched an exciting movie",
+    "answered the phone quickly", "served us rice and beans",
+    "organized the wedding", "embraced a new opportunity",
+]
+
+# ── Model loading (cached) ───────────────────────────────────────────────────────
+@st.cache_resource(show_spinner="Loading BERT model…")
+def load_models():
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    model = BertForMaskedLM.from_pretrained('bert-base-uncased')
+    model.eval()
+    return tokenizer, model
+
+tokenizer, bert_model = load_models()
+
+# ── Core logic ───────────────────────────────────────────────────────────────────
+def is_semantically_correct(sentence: str) -> bool:
+    tokens = tokenizer.tokenize(sentence)
+    if not tokens:
+        return False
+    correct = 0
+    for i, original_token in enumerate(tokens):
+        masked_tokens = tokens[:i] + ['[MASK]'] + tokens[i + 1:]
+        masked_sentence = tokenizer.convert_tokens_to_string(masked_tokens)
+        inputs = tokenizer(masked_sentence, return_tensors='pt')
+        with torch.no_grad():
+            logits = bert_model(**inputs).logits
+        mask_token_id = tokenizer.mask_token_id
+        input_ids = inputs['input_ids'][0]
+        mask_positions = (input_ids == mask_token_id).nonzero(as_tuple=True)[0]
+        if len(mask_positions) == 0:
+            continue
+        mask_pos = mask_positions[0].item()
+        predicted_id = torch.argmax(logits[0, mask_pos]).item()
+        predicted_token = tokenizer.convert_ids_to_tokens([predicted_id])[0]
+        if predicted_token == original_token:
+            correct += 1
+    return (correct / len(tokens)) > 0.5
+
+
+def generate_decoy(max_attempts: int = 10) -> str:
+    best_sentence = None
+    for _ in range(max_attempts):
+        noun = random.choice(NOUN_PHRASES)
+        verb = random.choice(VERB_PHRASES)
+        candidate = noun + ' ' + verb
+        candidate = candidate[0].upper() + candidate[1:]
+        if not candidate.endswith('.'):
+            candidate += '.'
+        if is_semantically_correct(candidate):
+            return candidate
+        if best_sentence is None:
+            best_sentence = candidate
+    return best_sentence or "The professor organized the wedding."
+
+# ── UI ───────────────────────────────────────────────────────────────────────────
+st.title("🔐 Decoy Sentence Generator")
+st.caption("Enter your sentence and a password. The correct password reveals your original sentence; anything else returns a plausible decoy.")
+
+st.divider()
+
+user_sentence = st.text_area(
+    "Your sentence",
+    placeholder="Type the sentence you want to protect…",
+    height=100,
+)
+
+if st.button("Generate Decoy & Verify", disabled=not user_sentence.strip()):
+    with st.spinner("Running BERT semantic validation…"):
+        decoy = generate_decoy()
+
+    st.session_state["decoy"] = decoy
+    st.session_state["user_sentence"] = user_sentence
+    st.success("Decoy generated. Enter your password below to reveal the result.")
+
+if "decoy" in st.session_state:
+    st.divider()
+    password = st.text_input("Password", type="password", placeholder="Enter password…")
+
+    if st.button("Submit"):
+        st.divider()
+        st.markdown('<p class="label-text">Output</p>', unsafe_allow_html=True)
+        if password == SECRET_PASSWORD:
+            st.markdown(
+                f'<div class="result-box">✅ &nbsp;{st.session_state["user_sentence"]}</div>',
+                unsafe_allow_html=True,
+            )
         else:
-            variants = []
-            for _ in range(n_variants):
-                current = template
-                while "[MASK]" in current:
-                    outs = self.generator(current, top_k=top_k)
-                    choice = random.choice(outs)
-                    current = choice['sequence']
-                variants.append(current)
-            return variants
-
-import hmac, hashlib
-
-class DTE:
-    def __init__(self, honey_messages):
-        self.honey_messages = honey_messages
-        self.n = len(honey_messages)
-
-    def _index_from_key(self, key: str) -> int:
-        hm = hmac.new(key.encode('utf-8'), b'dte-index', hashlib.sha256).digest()
-        idx = int.from_bytes(hm, 'big') % self.n
-        return idx
-
-    def encode(self, true_key: str) -> int:
-        return self._index_from_key(true_key)
-
-    def decode(self, key: str) -> str:
-        idx = self._index_from_key(key)
-        return self.honey_messages[idx]
-
-import base64
-import os
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-def derive_key(passphrase: str, salt: bytes) -> bytes:
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=100_000,
-    )
-    return kdf.derive(passphrase.encode('utf-8'))
-
-def encrypt_index(index: int, passphrase: str = "default"):
-    salt = os.urandom(16)
-    key = derive_key(passphrase, salt)
-    aesgcm = AESGCM(key)
-    nonce = os.urandom(12)
-    data = str(index).encode('utf-8')
-    ct = aesgcm.encrypt(nonce, data, None)
-    token = base64.urlsafe_b64encode(salt + nonce + ct).decode('utf-8')
-    return token
-
-def decrypt_index(token: str, passphrase: str = "default") -> int:
-    raw = base64.urlsafe_b64decode(token)
-    salt, nonce, ct = raw[:16], raw[16:28], raw[28:]
-    key = derive_key(passphrase, salt)
-    aesgcm = AESGCM(key)
-    data = aesgcm.decrypt(nonce, ct, None)
-    return int(data.decode('utf-8'))
-
-print("\n Generating honey messages...")
-generator = HoneyGenerator(MODEL_PATH)
-template = "Debit of [MASK] made at [MASK] on [MASK]."
-honey_messages = generator.generate(template, top_k=5, n_variants=5)
-
-print("\n Generated honey messages:")
-for m in honey_messages:
-    print(" -", m)
-
-dte = DTE(honey_messages)
-user_key = input("\nEnter encryption key: ")
-index = dte.encode(user_key)
-token = encrypt_index(index, passphrase=user_key)
-print(f"\n Encrypted index token: {token}")
-
-attacker_key = input("Enter decryption key (try wrong keys too): ")
-try:
-    decrypted_index = decrypt_index(token, passphrase=attacker_key)
-    output_message = honey_messages[decrypted_index]
-except Exception as e:
-    output_message = "(Decryption failed — random honey message)"
-
-print(f"\n Decrypted/Honey message: {output_message}")
+            st.markdown(
+                f'<div class="result-box">🔀 &nbsp;{st.session_state["decoy"]}</div>',
+                unsafe_allow_html=True,
+            )
