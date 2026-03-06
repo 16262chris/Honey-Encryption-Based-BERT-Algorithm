@@ -5,14 +5,12 @@ import random
 from pymongo import MongoClient
 from datetime import datetime
 
-# ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Honey Encryption Study",
     page_icon="🔐",
     layout="centered",
 )
 
-# ── Styling ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
@@ -109,7 +107,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── MongoDB init ────────────────────────────────────────────────────────────────
 @st.cache_resource
 def init_mongo():
     uri = st.secrets["mongo"]["uri"]
@@ -118,7 +115,6 @@ def init_mongo():
 
 db = init_mongo()
 
-# ── BERT init ──────────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner="Loading BERT model…")
 def load_models():
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -128,11 +124,9 @@ def load_models():
 
 tokenizer, bert_model = load_models()
 
-# ── Fixed sentence & password ───────────────────────────────────────────────────
 SECRET_SENTENCE = "God does not play dice with the universe."
 SECRET_PASSWORD = "Iam123@"
 
-# ── Decoy password pool ─────────────────────────────────────────────────────────
 DECOY_PASSWORDS = [
     "password1", "123456789", "qwerty123", "iloveyou1",
     "admin@123", "letmein1!", "welcome12", "monkey123",
@@ -141,7 +135,6 @@ DECOY_PASSWORDS = [
     "abc123456", "trustno1!", "superman1", "batman123",
 ]
 
-# ── Dataset ─────────────────────────────────────────────────────────────────────
 NOUN_PHRASES = [
     "the old man", "she", "my father", "he", "the little boy",
     "the handsome chef", "the movie director", "his best friend",
@@ -163,7 +156,6 @@ VERB_PHRASES = [
     "organized the wedding", "embraced a new opportunity",
 ]
 
-# ── Core logic ─────────────────────────────────────────────────────────────────
 def is_semantically_correct(sentence: str) -> bool:
     tokens = tokenizer.tokenize(sentence)
     if not tokens:
@@ -232,7 +224,6 @@ def render_steps(current: int):
             col.markdown(f'<div class="step-indicator">○ Step {step_num}<br>{label}</div>', unsafe_allow_html=True)
 
 
-# ── Session state defaults ─────────────────────────────────────────────────────
 if "page" not in st.session_state:
     st.session_state["page"] = "survey"
 if "survey_data" not in st.session_state:
@@ -243,9 +234,6 @@ if "password_options" not in st.session_state:
     st.session_state["password_options"] = build_password_options()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 1 — SURVEY
-# ══════════════════════════════════════════════════════════════════════════════
 if st.session_state["page"] == "survey":
 
     render_steps(1)
@@ -310,9 +298,6 @@ if st.session_state["page"] == "survey":
                 st.rerun()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 2 — PASSWORD TRIAL
-# ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state["page"] == "trial":
 
     render_steps(2)
@@ -362,9 +347,7 @@ elif st.session_state["page"] == "trial":
             st.rerun()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 3 — OUTPUT + CONFIDENCE RATING
-# ══════════════════════════════════════════════════════════════════════════════
+
 elif st.session_state["page"] == "confidence":
 
     render_steps(3)
@@ -417,9 +400,7 @@ elif st.session_state["page"] == "confidence":
                 st.error(f"Could not save to MongoDB: {e}")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 4 — THANK YOU
-# ══════════════════════════════════════════════════════════════════════════════
+
 elif st.session_state["page"] == "done":
 
     render_steps(4)
