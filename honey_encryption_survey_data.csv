@@ -1,0 +1,34 @@
+_id,age_range,gender,education,english_level,english_exam,selected_password,correct_password_chosen,sentence_shown,confidence,timestamp
+69a8d11461aaad52d208bacd,16 - 25,Male,Tertiary education,Advanced,IELTS/TOEFL/Duolingo,letmein1!,false,Her husband devoured the last slice of cake in seconds.,Somewhat confident,2026-03-05T00:40:52.833823
+69a95e8161aaad52d208bace,26 - 35,Male,Postgraduate education,Advanced,JAMB/WAEC,admin@123,false,The professor burst into laughter at the unexpected joke.,Very confident,2026-03-05T10:44:17.816319
+69a9624361aaad52d208bacf,16 - 25,Male,Tertiary education,Intermediate,JAMB/WAEC,sunshine1,false,My father walked with precision.,Somewhat confident,2026-03-05T11:00:19.637828
+69a96aa461aaad52d208bad0,26 - 35,Male,Tertiary education,Intermediate,JAMB/WAEC,Iam123@,true,God does not play dice with the universe.,Very confident,2026-03-05T11:36:04.552971
+69a98e4761aaad52d208bad1,16 - 25,Male,Tertiary education,Advanced,JAMB/WAEC,123456789,false,His best friend offered words of comfort to a grieving friend.,Somewhat confident,2026-03-05T14:08:07.948003
+69a99ab661aaad52d208bad2,16 - 25,Male,Basic education,Intermediate,GST,Iam123@,true,God does not play dice with the universe.,Very confident,2026-03-05T15:01:10.057053
+69a9a7f761aaad52d208bad3,16 - 25,Female,Postgraduate education,Intermediate,JAMB/WAEC,admin@123,false,The movie director burst into laughter at the unexpected joke.,Somewhat confident,2026-03-05T15:57:43.338760
+69aa960461aaad52d208bad4,16 - 25,Female,Tertiary education,Advanced,GST,abc123456,false,Our governor answered the phone quickly.,Somewhat confident,2026-03-06T08:53:24.822549
+69aa991d61aaad52d208bad5,16 - 25,Male,Tertiary education,Intermediate,IELTS/TOEFL/Duolingo,admin@123,false,He quietly pondered the meaning of life.,Somewhat confident,2026-03-06T09:06:37.919781
+69aa9f1861aaad52d208bad6,16 - 25,Male,Tertiary education,Advanced,JAMB/WAEC,Iam123@,true,God does not play dice with the universe.,Very confident,2026-03-06T09:32:08.779692
+69aa9fce61aaad52d208bad7,26 - 35,Male,Postgraduate education,Beginner,JAMB/WAEC,master123,false,A young lady watched an exciting movie.,Very confident,2026-03-06T09:35:10.596226
+69aaa80261aaad52d208bad8,16 - 25,Male,Postgraduate education,Advanced,JAMB/WAEC,Iam123@,true,God does not play dice with the universe.,Somewhat confident,2026-03-06T10:10:10.943075
+69aacf2761aaad52d208bada,16 - 25,Female,Tertiary education,Intermediate,JAMB/WAEC,shadow123,false,The old man diligently researched the topic for weeks.,Somewhat confident,2026-03-06T12:57:11.762555
+69aae95761aaad52d208badb,26 - 35,Male,Postgraduate education,Advanced,IELTS/TOEFL/Duolingo,admin@123,false,The bickering siblings devoured the last slice of cake in seconds.,Very confident,2026-03-06T14:48:55.539267
+69aae98f61aaad52d208badc,16 - 25,Male,Tertiary education,Intermediate,JAMB/WAEC,dragon123,false,The bickering siblings burst into laughter at the unexpected joke.,Very confident,2026-03-06T14:49:51.179268
+69aae9a261aaad52d208badd,26 - 35,Male,Tertiary education,Advanced,JAMB/WAEC,Iam123@,true,God does not play dice with the universe.,Very confident,2026-03-06T14:50:10.555512
+69aaf88e61aaad52d208bade,16 - 25,Female,Tertiary education,Intermediate,GST,Iam123@,true,God does not play dice with the universe.,Somewhat confident,2026-03-06T15:53:50.995239
+69ab1d4461aaad52d208badf,16 - 25,Female,Tertiary education,Intermediate,JAMB/WAEC,monkey123,false,Her mother offered words of comfort to a grieving friend.,Somewhat confident,2026-03-06T18:30:28.055710
+69ab248b61aaad52d208bae0,16 - 25,Male,Tertiary education,Intermediate,GST,Iam123@,true,God does not play dice with the universe.,Somewhat confident,2026-03-06T19:01:31.551875
+69ab2bb461aaad52d208bae1,16 - 25,Female,Senior secondary education,Intermediate,JAMB/WAEC,admin@123,false,They listened attentively to the lecture.,Somewhat confident,2026-03-06T19:32:04.505313
+69abbfcd8d2e7503bc13d538,26 - 35,Male,Tertiary education,Intermediate,JAMB/WAEC,Iam123@,true,God does not play dice with the universe.,Somewhat confident,2026-03-07T06:03:57.704825
+69abce948d2e7503bc13d539,16 - 25,Male,Senior secondary education,Intermediate,JAMB/WAEC,Iam123@,true,God does not play dice with the universe.,Very confident,2026-03-07T07:07:00.510840
+69abdd1f8d2e7503bc13d53a,16 - 25,Male,Tertiary education,Advanced,GST,baseball1,false,The little boy answered the phone quickly.,Very confident,2026-03-07T08:09:03.154726
+69abdff48d2e7503bc13d53b,16 - 25,Male,Tertiary education,Intermediate,JAMB/WAEC,qwerty123,false,The professor listened attentively to the lecture.,Very confident,2026-03-07T08:21:08.008743
+69abe0e78d2e7503bc13d53c,16 - 25,Male,Tertiary education,Intermediate,JAMB/WAEC,dragon123,false,James burst into laughter at the unexpected joke.,Very confident,2026-03-07T08:25:11.656691
+69abe3ba8d2e7503bc13d53d,16 - 25,Male,Senior secondary education,Intermediate,JAMB/WAEC,football1,false,He sang a beautiful song.,Very confident,2026-03-07T08:37:14.889321
+69abe4638d2e7503bc13d53e,16 - 25,Male,Senior secondary education,Intermediate,JAMB/WAEC,123456789,false,Our governor answered the phone quickly.,Not confident,2026-03-07T08:40:03.353544
+69abe9d08d2e7503bc13d53f,16 - 25,Female,Tertiary education,Intermediate,JAMB/WAEC,password1,false,The professor gave us a cup of coffee.,Not confident,2026-03-07T09:03:12.876102
+69ac30248d2e7503bc13d540,Over 65,Prefer not to say,No formal education,Beginner,None,football1,false,Her husband sang a beautiful song.,Not confident,2026-03-07T14:03:16.215384
+69ac32868d2e7503bc13d541,16 - 25,Female,Senior secondary education,Intermediate,JAMB/WAEC,Iam123@,true,God does not play dice with the universe.,Somewhat confident,2026-03-07T14:13:26.026710
+69ac62b38d2e7503bc13d542,16 - 25,Male,Tertiary education,Advanced,GST,abc123456,false,A young lady quietly pondered the meaning of life.,Very confident,2026-03-07T17:38:59.373723
+69ad354c8d2e7503bc13d543,26 - 35,Male,Postgraduate education,Advanced,IELTS/TOEFL/Duolingo,superman1,false,Her mother answered the phone quickly.,Very confident,2026-03-08T08:37:32.296195
+69e0aafe93c0169fbb913383,36 - 45,Female,Postgraduate education,Advanced,GST,batman123,false,He gently cradled the newborn baby in their arms.,Somewhat confident,2026-04-16T09:25:18.646833
